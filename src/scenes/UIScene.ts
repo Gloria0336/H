@@ -170,9 +170,9 @@ export class UIScene extends Phaser.Scene {
 
   // ─── HUD 更新（由 GameScene 呼叫）─────────────────────────
   updateHUD(data: { hp: number; maxHp: number; floor: number; gold: number }) {
-    this.txtFloor.setText(`第 ${data.floor} 層`);
-    this.txtHP.setText(`HP: ${data.hp}/${data.maxHp}`);
-    this.txtGold.setText(`金:${data.gold}`);
-    this.drawHPBar(data.hp, data.maxHp);
+    this.txtFloor?.setText(`第 ${data.floor} 層`);
+    this.txtHP?.setText(`HP: ${data.hp}/${data.maxHp}`);
+    this.txtGold?.setText(`金:${data.gold}`);
+    if (this.hpBar) this.drawHPBar(data.hp, data.maxHp);
   }
 }
