@@ -19,7 +19,7 @@ export const PLAYER_MAX_HP = 100;
 
 // ─── FOV ──────────────────────────────────────────────────────
 export const FOV_RADIUS = 8;          // 視野半徑（格）
-export const CORRIDOR_FOV_RADIUS = 3; // 在廊中的視野半徑
+export const CORRIDOR_FOV_RADIUS = 5; // 在廊中的視野半徑
 
 // ─── 顏色 ──────────────────────────────────────────────────────
 export const COLORS = {

@@ -109,12 +109,15 @@ export class DungeonGenerator {
             type:        TileType.CORRIDOR,
             char:        '廊',
             passable:    true,
-            transparent: false,
+            transparent: true,   // 廊道透明，視線可沿廊延伸
             fov:         FovState.DARK,
           });
         }
       }
     }
+
+    // ── 剪除孤立廊道（通往被捨棄房間的死路）────────────────────
+    this.pruneOrphanCorridors(map, roomCells);
 
     // ── 轉換為 Room[] ────────────────────────────────────────────
     const rooms: Room[] = keptRaw.map(r => ({
@@ -238,6 +241,50 @@ export class DungeonGenerator {
       rooms: [throneRoom],
       playerStart: { x: cx, y: cy - 4 },
     };
+  }
+
+  // ── 剪除孤立廊道（BFS 從保留房間擴散，不可達的通行格改回牆）──
+  private pruneOrphanCorridors(map: TileMap, roomCells: Set<string>) {
+    const visited = new Set<string>();
+    const queue:   [number, number][] = [];
+
+    // 以所有保留房間格為起點
+    roomCells.forEach(key => {
+      visited.add(key);
+      const [x, y] = key.split(',').map(Number);
+      queue.push([x, y]);
+    });
+
+    const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+    let i = 0;
+    while (i < queue.length) {
+      const [cx, cy] = queue[i++];
+      for (const [dx, dy] of dirs) {
+        const nx = cx + dx, ny = cy + dy;
+        const key = `${nx},${ny}`;
+        if (visited.has(key)) continue;
+        const cell = map.get(nx, ny);
+        if (!cell || !cell.passable) continue;
+        visited.add(key);
+        queue.push([nx, ny]);
+      }
+    }
+
+    // 無法到達的通行格（孤立廊道）→ 改回牆
+    for (let y = 0; y < MAP_ROWS; y++) {
+      for (let x = 0; x < MAP_COLS; x++) {
+        const cell = map.get(x, y);
+        if (cell?.passable && !visited.has(`${x},${y}`)) {
+          map.set(x, y, {
+            type:        TileType.WALL,
+            char:        '牆',
+            passable:    false,
+            transparent: false,
+            fov:         FovState.DARK,
+          });
+        }
+      }
+    }
   }
 
   // ── 放置柱 ─────────────────────────────────────────────────────
