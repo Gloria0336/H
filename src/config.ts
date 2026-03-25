@@ -19,11 +19,14 @@ export const PLAYER_MAX_HP = 100;
 
 // ─── FOV ──────────────────────────────────────────────────────
 export const FOV_RADIUS = 8;          // 視野半徑（格）
+export const CORRIDOR_FOV_RADIUS = 3; // 在廊中的視野半徑
 
 // ─── 顏色 ──────────────────────────────────────────────────────
 export const COLORS = {
   WALL:        0x555555,
-  FLOOR:       0x2a2a2a,
+  FLOOR:       0x000000,
+  CORRIDOR:    0x1a1a1a,
+  PILLAR:      0x888888,
   DOOR:        0x8B4513,
   PLAYER:      0xFFD700,
   ENEMY:       0xFF4444,

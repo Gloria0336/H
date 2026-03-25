@@ -1,11 +1,13 @@
 // ─── 格子類型 ──────────────────────────────────────────────────
 export const enum TileType {
-  EMPTY   = 0,
-  WALL    = 1,
-  FLOOR   = 2,
-  DOOR    = 3,
-  CHEST   = 4,
-  EXIT    = 5,
+  EMPTY    = 0,
+  WALL     = 1,
+  FLOOR    = 2,
+  DOOR     = 3,
+  CHEST    = 4,
+  EXIT     = 5,
+  PILLAR   = 6,  // 房間內獨立柱，不可穿越
+  CORRIDOR = 7,  // 走廊過渡，可通行但阻擋視野
 }
 
 // ─── 格子視覺定義 ──────────────────────────────────────────────
@@ -15,12 +17,14 @@ export interface TileVisual {
 }
 
 export const TILE_VISUALS: Record<TileType, TileVisual> = {
-  [TileType.EMPTY]: { chars: ['　'], color: 0x000000 },
-  [TileType.WALL]:  { chars: ['牆', '石', '壁', '礁', '岩'], color: 0x555555 },
-  [TileType.FLOOR]: { chars: ['地', '土', '廊', '塵', '·'], color: 0x2a2a2a },
-  [TileType.DOOR]:  { chars: ['門', '關'], color: 0x8B4513 },
-  [TileType.CHEST]: { chars: ['寶'], color: 0xFFD700 },
-  [TileType.EXIT]:  { chars: ['梯'], color: 0x00FF88 },
+  [TileType.EMPTY]:    { chars: ['　'], color: 0x000000 },
+  [TileType.WALL]:     { chars: ['牆'], color: 0x555555 },
+  [TileType.FLOOR]:    { chars: ['　'], color: 0x000000 },  // 地板不顯示文字
+  [TileType.DOOR]:     { chars: ['門'], color: 0x8B4513 },
+  [TileType.CHEST]:    { chars: ['寶'], color: 0xFFD700 },
+  [TileType.EXIT]:     { chars: ['梯'], color: 0x00FF88 },
+  [TileType.PILLAR]:   { chars: ['柱'], color: 0x888888 },
+  [TileType.CORRIDOR]: { chars: ['廊'], color: 0x1a1a1a },
 };
 
 // ─── 實體類型 ──────────────────────────────────────────────────

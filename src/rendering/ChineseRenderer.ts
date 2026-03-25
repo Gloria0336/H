@@ -72,12 +72,14 @@ export class ChineseRenderer {
     if (cell.fov === FovState.DIMMED) return COLORS.DIMMED;
 
     switch (cell.type) {
-      case TileType.WALL:  return COLORS.WALL;
-      case TileType.FLOOR: return COLORS.FLOOR;
-      case TileType.DOOR:  return COLORS.DOOR;
-      case TileType.CHEST: return COLORS.CHEST;
-      case TileType.EXIT:  return COLORS.EXIT;
-      default:             return COLORS.FLOOR;
+      case TileType.WALL:     return COLORS.WALL;
+      case TileType.FLOOR:    return COLORS.FLOOR;
+      case TileType.CORRIDOR: return COLORS.CORRIDOR;
+      case TileType.PILLAR:   return COLORS.PILLAR;
+      case TileType.DOOR:     return COLORS.DOOR;
+      case TileType.CHEST:    return COLORS.CHEST;
+      case TileType.EXIT:     return COLORS.EXIT;
+      default:                return COLORS.FLOOR;
     }
   }
 

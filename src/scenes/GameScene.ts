@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import {
   GAME_WIDTH, GAME_HEIGHT, TILE_SIZE,
   VIEW_COLS, DUNGEON_VIEW_ROWS, HUD_ROWS,
-  PLAYER_SPEED,
+  PLAYER_SPEED, FOV_RADIUS, CORRIDOR_FOV_RADIUS,
 } from '@/config';
 import { DungeonGenerator } from '@/dungeon/DungeonGenerator';
 import { TileMap } from '@/dungeon/TileMap';
@@ -12,7 +12,7 @@ import { FOVSystem } from '@/systems/FOVSystem';
 import { CombatSystem } from '@/systems/CombatSystem';
 import { Player } from '@/entities/Player';
 import { Enemy } from '@/entities/Enemy';
-import { EntityType } from '@/dungeon/tiles';
+import { EntityType, TileType } from '@/dungeon/tiles';
 import { Room } from '@/dungeon/DungeonGenerator';
 
 const HUD_OFFSET_Y = HUD_ROWS * TILE_SIZE; // 頂部 HUD 占用的像素高度
@@ -60,7 +60,7 @@ export class GameScene extends Phaser.Scene {
     this.tileRenderer?.destroy();
     this.effects?.destroy();
 
-    const gen = new DungeonGenerator(seed);
+    const gen = new DungeonGenerator(this.floor, seed);
     this.currentSeed = gen.getSeed();
     const { map, rooms, playerStart } = gen.generate();
     this.map = map;
@@ -105,7 +105,7 @@ export class GameScene extends Phaser.Scene {
 
   private spawnEnemies() {
     this.rooms.forEach((room, i) => {
-      if (room.tag === 'start') return;
+      if (room.tag === 'start' || room.tag === 'entrance' || room.tag === 'throne') return;
 
       const type = room.tag === 'boss'
         ? EntityType.BOSS
@@ -207,8 +207,11 @@ export class GameScene extends Phaser.Scene {
     if (this.player.tryMove(nx, ny, this.map)) {
       // 更新視口
       this.centerViewOnPlayer();
+      // 廊內視野縮減
+      const playerCell = this.map.get(this.player.mapX, this.player.mapY);
+      const fovRadius  = playerCell?.type === TileType.CORRIDOR ? CORRIDOR_FOV_RADIUS : FOV_RADIUS;
       // 更新 FOV
-      const changed = this.fov.update(this.player.mapX, this.player.mapY);
+      const changed = this.fov.update(this.player.mapX, this.player.mapY, fovRadius);
       this.tileRenderer.markDirtyBatch(changed);
       this.tileRenderer.redrawDirty();
       // 更新玩家顯示
@@ -216,7 +219,7 @@ export class GameScene extends Phaser.Scene {
 
       // 檢查出口
       const cell = this.map.get(nx, ny);
-      if (cell?.type === 4 /* TileType.EXIT */) {
+      if (cell?.type === TileType.EXIT) {
         this.nextFloor();
       }
 
@@ -233,7 +236,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateFOV() {
-    const changed = this.fov.update(this.player.mapX, this.player.mapY);
+    const changed = this.fov.update(this.player.mapX, this.player.mapY, FOV_RADIUS);
     this.tileRenderer.markDirtyBatch(changed);
   }
 
@@ -265,8 +268,17 @@ export class GameScene extends Phaser.Scene {
   }
 
   private nextFloor() {
+    if (this.floor >= 10) {
+      this.onGameWin();
+      return;
+    }
     this.floor++;
     this.generateFloor();
+  }
+
+  private onGameWin() {
+    console.log('勝利！通關第10層！');
+    // TODO: 顯示勝利畫面
   }
 
   private onPlayerDead() {
