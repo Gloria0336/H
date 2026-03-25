@@ -123,17 +123,17 @@ export class GameScene extends Phaser.Scene {
   }
 
   private setupInput() {
-    this.cursors = this.input.keyboard!.createCursorKeys();
-    this.wasd = {
-      up:    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.W),
-      down:  this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.S),
-      left:  this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.A),
-      right: this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.D),
-    };
-
-    // 攻擊快捷鍵（桌機測試用）
-    this.input.keyboard!.on('keydown-SPACE', () => this.playerAttackFacing());
-    this.input.keyboard!.on('keydown-Q',     () => this.playerSkill());
+    if (this.input.keyboard) {
+      this.cursors = this.input.keyboard.createCursorKeys();
+      this.wasd = {
+        up:    this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W),
+        down:  this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S),
+        left:  this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A),
+        right: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D),
+      };
+      this.input.keyboard.on('keydown-SPACE', () => this.playerAttackFacing());
+      this.input.keyboard.on('keydown-Q',     () => this.playerSkill());
+    }
   }
 
   update(_time: number, delta: number) {
@@ -179,7 +179,7 @@ export class GameScene extends Phaser.Scene {
       } else {
         dy = jy > 0 ? 1 : -1;
       }
-    } else {
+    } else if (this.cursors && this.wasd) {
       // 鍵盤
       if (this.cursors.left.isDown  || this.wasd.left.isDown)  dx = -1;
       if (this.cursors.right.isDown || this.wasd.right.isDown) dx =  1;
