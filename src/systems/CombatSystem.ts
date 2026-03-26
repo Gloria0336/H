@@ -56,10 +56,10 @@ export class CombatSystem {
     for (let d = 1; d <= 2; d++) {
       const tx = player.mapX + fdx * d;
       const ty = player.mapY + fdy * d;
+      this.effects.play(EffectType.HIT, tx, ty, viewX, viewY, offsetY);
       const enemy = enemies.find(e => e.mapX === tx && e.mapY === ty && e.isAlive());
       if (enemy) {
         enemy.takeDamage(damage);
-        this.effects.play(EffectType.HIT, tx, ty, viewX, viewY, offsetY);
         return [{ enemy, result: { damage, killed: !enemy.isAlive() } }];
       }
     }
@@ -84,11 +84,11 @@ export class CombatSystem {
       const cell = map.get(tx, ty);
       if (!cell || !cell.passable) break; // 碰到牆停止
 
+      this.effects.play(EffectType.FIRE, tx, ty, viewX, viewY, offsetY);
       const enemy = enemies.find(e => e.mapX === tx && e.mapY === ty && e.isAlive());
       if (enemy) {
         const damage = skillDamage + Math.floor(Math.random() * 10);
         enemy.takeDamage(damage);
-        this.effects.play(EffectType.FIRE, tx, ty, viewX, viewY, offsetY);
         return [{ enemy, result: { damage, killed: !enemy.isAlive() } }];
       }
     }
@@ -112,11 +112,11 @@ export class CombatSystem {
       for (let p = -1; p <= 1; p++) {
         const tx = player.mapX + fdx * d + perpDx * p;
         const ty = player.mapY + fdy * d + perpDy * p;
+        this.effects.play(EffectType.ICE, tx, ty, viewX, viewY, offsetY);
         const enemy = enemies.find(e => e.mapX === tx && e.mapY === ty && e.isAlive());
         if (enemy) {
           const damage = skillDamage + Math.floor(Math.random() * 8);
           enemy.takeDamage(damage);
-          this.effects.play(EffectType.ICE, tx, ty, viewX, viewY, offsetY);
           results.push({ enemy, result: { damage, killed: !enemy.isAlive() } });
         }
       }
@@ -141,11 +141,11 @@ export class CombatSystem {
       for (let p = -1; p <= 1; p++) {
         const tx = player.mapX + fdx * d + perpDx * p;
         const ty = player.mapY + fdy * d + perpDy * p;
+        this.effects.play(EffectType.SLASH, tx, ty, viewX, viewY, offsetY);
         const enemy = enemies.find(e => e.mapX === tx && e.mapY === ty && e.isAlive());
         if (enemy) {
           const damage = skillDamage + Math.floor(Math.random() * 6);
           enemy.takeDamage(damage);
-          this.effects.play(EffectType.SLASH, tx, ty, viewX, viewY, offsetY);
           results.push({ enemy, result: { damage, killed: !enemy.isAlive() } });
         }
       }
