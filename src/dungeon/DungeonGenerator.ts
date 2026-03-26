@@ -60,18 +60,13 @@ export class DungeonGenerator {
     // ── 一般地層生成 ────────────────────────────────────────────
     const map = new TileMap(MAP_COLS, MAP_ROWS);
 
-    const rotMap = new ROT.Map.Digger(MAP_COLS, MAP_ROWS, {
-      roomWidth:     [5, 12],
-      roomHeight:    [4, 10],
-      dugPercentage: 0.40,
-      timeLimit:     1000,
-    });
-
+    // Step 1：以 DividedMaze 生成迷宮底圖（全部標為 CORRIDOR）
+    const rotMap = new ROT.Map.DividedMaze(MAP_COLS, MAP_ROWS);
     rotMap.create((x, y, wall) => {
       if (!wall) {
         map.set(x, y, {
-          type:        TileType.FLOOR,
-          char:        '　',
+          type:        TileType.CORRIDOR,
+          char:        '廊',
           passable:    true,
           transparent: true,
           fov:         FovState.DARK,
@@ -87,47 +82,51 @@ export class DungeonGenerator {
       }
     });
 
-    // ── 擷取並裁剪房間 ──────────────────────────────────────────
-    const target = FLOOR_ROOM_COUNTS[this.floorNumber] ?? 5;
-    const rawRooms = rotMap.getRooms();
-    const keptRaw  = rawRooms.slice(0, target);
-
-    // ── 標記房間內格子（用以區分 FLOOR vs CORRIDOR）─────────────
+    // Step 2：在迷宮上隨機放置指定數量的房間（覆蓋迷宮格子）
+    const target   = FLOOR_ROOM_COUNTS[this.floorNumber] ?? 5;
+    const rooms:    Room[]       = [];
     const roomCells = new Set<string>();
-    keptRaw.forEach(r => {
-      for (let y = r.getTop(); y <= r.getBottom(); y++)
-        for (let x = r.getLeft(); x <= r.getRight(); x++)
-          roomCells.add(`${x},${y}`);
-    });
 
-    // ── FLOOR → CORRIDOR（非房間內的通道）──────────────────────
-    for (let y = 0; y < MAP_ROWS; y++) {
-      for (let x = 0; x < MAP_COLS; x++) {
-        const cell = map.get(x, y);
-        if (cell?.type === TileType.FLOOR && !roomCells.has(`${x},${y}`)) {
-          map.set(x, y, {
-            type:        TileType.CORRIDOR,
-            char:        '廊',
-            passable:    true,
-            transparent: true,   // 廊道透明，視線可沿廊延伸
-            fov:         FovState.DARK,
-          });
+    const MIN_W = 5, MAX_W = 10, MIN_H = 4, MAX_H = 8;
+    const MAX_ATTEMPTS = 300;
+
+    for (let i = 0; i < target; i++) {
+      let placed = false;
+      for (let attempt = 0; attempt < MAX_ATTEMPTS && !placed; attempt++) {
+        const w = MIN_W + Math.floor(ROT.RNG.getUniform() * (MAX_W - MIN_W + 1));
+        const h = MIN_H + Math.floor(ROT.RNG.getUniform() * (MAX_H - MIN_H + 1));
+        const x = 1 + Math.floor(ROT.RNG.getUniform() * (MAP_COLS - w - 2));
+        const y = 1 + Math.floor(ROT.RNG.getUniform() * (MAP_ROWS - h - 2));
+
+        // 與現有房間不可重疊（含 1 格邊距）
+        const overlaps = rooms.some(r =>
+          x <= r.x + r.w && x + w >= r.x &&
+          y <= r.y + r.h && y + h >= r.y
+        );
+        if (overlaps) continue;
+
+        const cx = x + Math.floor(w / 2);
+        const cy = y + Math.floor(h / 2);
+        rooms.push({ x, y, w, h, cx, cy });
+
+        for (let ry = y; ry < y + h; ry++) {
+          for (let rx = x; rx < x + w; rx++) {
+            map.set(rx, ry, {
+              type:        TileType.FLOOR,
+              char:        '　',
+              passable:    true,
+              transparent: true,
+              fov:         FovState.DARK,
+            });
+            roomCells.add(`${rx},${ry}`);
+          }
         }
+        placed = true;
       }
     }
 
-    // ── 剪除孤立廊道（通往被捨棄房間的死路）────────────────────
+    // Step 3：BFS 從所有房間格出發，刪除沒有連接到房間的死胡同廊道
     this.pruneOrphanCorridors(map, roomCells);
-
-    // ── 轉換為 Room[] ────────────────────────────────────────────
-    const rooms: Room[] = keptRaw.map(r => ({
-      x:  r.getLeft(),
-      y:  r.getTop(),
-      w:  r.getRight()  - r.getLeft() + 1,
-      h:  r.getBottom() - r.getTop()  + 1,
-      cx: Math.floor((r.getLeft() + r.getRight())  / 2),
-      cy: Math.floor((r.getTop()  + r.getBottom()) / 2),
-    }));
 
     // ── 標記特殊房間 ─────────────────────────────────────────────
     if (rooms.length > 0) {
