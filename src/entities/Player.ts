@@ -19,11 +19,12 @@ export class Player {
 
   // Phaser Text 物件
   private text: Phaser.GameObjects.Text;
+  private dirIndicator: Phaser.GameObjects.Text;
   private scene: Phaser.Scene;
 
   // 朝向（用於攻擊判定）
   faceDx: number = 0;
-  faceDy: number = 0;
+  faceDy: number = 1;
 
   constructor(scene: Phaser.Scene, mapX: number, mapY: number) {
     this.scene = scene;
@@ -43,6 +44,15 @@ export class Player {
     });
     this.text.setOrigin(0, 0);
     this.text.setDepth(10);
+
+    this.dirIndicator = scene.add.text(0, 0, '▼', {
+      fontFamily: 'monospace',
+      fontSize: `${Math.floor(TILE_SIZE * 0.7)}px`,
+      color: '#00FFFF',
+      resolution: window.devicePixelRatio || 1,
+    });
+    this.dirIndicator.setOrigin(0.5, 0.5);
+    this.dirIndicator.setDepth(11);
   }
 
   /** 更新顯示位置（根據視口偏移計算螢幕座標）*/
@@ -50,6 +60,14 @@ export class Player {
     this.pixelX = (this.mapX - viewX) * TILE_SIZE;
     this.pixelY = offsetY + (this.mapY - viewY) * TILE_SIZE;
     this.text.setPosition(this.pixelX, this.pixelY);
+
+    // 方向指示器：顯示於朝向格中心
+    const arrowChar = this.faceDy < 0 ? '▲' : this.faceDy > 0 ? '▼' : this.faceDx < 0 ? '◀' : '▶';
+    this.dirIndicator.setText(arrowChar);
+    this.dirIndicator.setPosition(
+      (this.mapX - viewX + this.faceDx) * TILE_SIZE + TILE_SIZE * 0.5,
+      offsetY + (this.mapY - viewY + this.faceDy) * TILE_SIZE + TILE_SIZE * 0.5,
+    );
   }
 
   /** 嘗試移動到地圖格 (nx, ny)，回傳是否成功 */
@@ -77,5 +95,5 @@ export class Player {
 
   isAlive(): boolean { return this.hp > 0; }
 
-  destroy() { this.text.destroy(); }
+  destroy() { this.text.destroy(); this.dirIndicator.destroy(); }
 }

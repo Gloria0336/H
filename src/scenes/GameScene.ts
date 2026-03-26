@@ -104,22 +104,29 @@ export class GameScene extends Phaser.Scene {
   }
 
   private spawnEnemies() {
+    const floorTypes = this.getEnemyTypesForFloor();
     this.rooms.forEach((room, i) => {
       if (room.tag === 'start' || room.tag === 'entrance' || room.tag === 'throne') return;
 
-      const type = room.tag === 'boss'
-        ? EntityType.BOSS
-        : i % 3 === 0 ? EntityType.ENEMY_ELITE : EntityType.ENEMY_WEAK;
+      if (room.tag === 'boss') {
+        this.enemies.push(new Enemy(this, EntityType.BOSS, room.cx, room.cy));
+        return;
+      }
 
-      const e = new Enemy(this, type, room.cx, room.cy);
-      this.enemies.push(e);
+      const type1 = floorTypes[i % floorTypes.length];
+      this.enemies.push(new Enemy(this, type1, room.cx, room.cy));
 
-      // 普通房間多加一個弱敵
-      if (room.tag !== 'boss' && room.tag !== 'treasure') {
-        const e2 = new Enemy(this, EntityType.ENEMY_WEAK, room.cx + 1, room.cy);
-        this.enemies.push(e2);
+      if (room.tag !== 'treasure') {
+        const type2 = floorTypes[(i + 1) % floorTypes.length];
+        this.enemies.push(new Enemy(this, type2, room.cx + 1, room.cy));
       }
     });
+  }
+
+  private getEnemyTypesForFloor(): EntityType[] {
+    if (this.floor <= 3) return [EntityType.ENEMY_WEAK, EntityType.ENEMY_MID];
+    if (this.floor <= 6) return [EntityType.ENEMY_MID, EntityType.ENEMY_ELITE];
+    return [EntityType.ENEMY_ELITE]; // 7-9
   }
 
   private setupInput() {
@@ -132,7 +139,9 @@ export class GameScene extends Phaser.Scene {
         right: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D),
       };
       this.input.keyboard.on('keydown-SPACE', () => this.playerAttackFacing());
-      this.input.keyboard.on('keydown-Q',     () => this.playerSkill());
+      this.input.keyboard.on('keydown-Q', () => this.playerSkillFire());
+      this.input.keyboard.on('keydown-E', () => this.playerSkillIce());
+      this.input.keyboard.on('keydown-R', () => this.playerSkillSlash());
     }
   }
 
@@ -242,23 +251,37 @@ export class GameScene extends Phaser.Scene {
 
   playerAttackFacing() {
     if (!this.player.isAlive()) return;
-    const tx = this.player.mapX + (this.player.faceDx || 0);
-    const ty = this.player.mapY + (this.player.faceDy || 1);
-    const target = this.enemies.find(e => e.mapX === tx && e.mapY === ty && e.isAlive());
-    if (target) {
-      const result = this.combat.playerAttack(this.player, target, this.viewX, this.viewY, HUD_OFFSET_Y);
-      if (result.killed) {
-        target.destroy();
-        this.enemies = this.enemies.filter(e => e !== target);
-      }
-    }
-  }
-
-  playerSkill() {
-    if (!this.player.isAlive()) return;
-    const results = this.combat.playerSkillFire(
+    const results = this.combat.playerAttackHit(
       this.player, this.enemies, this.viewX, this.viewY, HUD_OFFSET_Y
     );
+    this.applySkillResults(results);
+  }
+
+  playerSkillFire() {
+    if (!this.player.isAlive()) return;
+    const results = this.combat.playerSkillFire(
+      this.player, this.enemies, this.map, this.viewX, this.viewY, HUD_OFFSET_Y
+    );
+    this.applySkillResults(results);
+  }
+
+  playerSkillIce() {
+    if (!this.player.isAlive()) return;
+    const results = this.combat.playerSkillIce(
+      this.player, this.enemies, this.viewX, this.viewY, HUD_OFFSET_Y
+    );
+    this.applySkillResults(results);
+  }
+
+  playerSkillSlash() {
+    if (!this.player.isAlive()) return;
+    const results = this.combat.playerSkillSlash(
+      this.player, this.enemies, this.viewX, this.viewY, HUD_OFFSET_Y
+    );
+    this.applySkillResults(results);
+  }
+
+  private applySkillResults(results: { enemy: Enemy; result: { damage: number; killed: boolean } }[]) {
     results.forEach(({ enemy, result }) => {
       if (result.killed) {
         enemy.destroy();

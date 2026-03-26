@@ -26,7 +26,9 @@ export class UIScene extends Phaser.Scene {
 
   // 動作按鈕
   private btnAttack!: Phaser.GameObjects.Text;
-  private btnSkill!: Phaser.GameObjects.Text;
+  private btnFire!: Phaser.GameObjects.Text;
+  private btnIce!: Phaser.GameObjects.Text;
+  private btnSlash!: Phaser.GameObjects.Text;
 
   private gameScene!: GameScene;
 
@@ -113,14 +115,24 @@ export class UIScene extends Phaser.Scene {
       resolution: window.devicePixelRatio || 1,
     };
 
+    const col2 = rightX - BTN_SIZE - BTN_MARGIN; // 左欄 x
+
     this.btnAttack = this.add.text(rightX, bottomY - BTN_SIZE - BTN_MARGIN, '攻', btnStyle)
       .setOrigin(0.5).setDepth(UI_DEPTH).setInteractive();
 
-    this.btnSkill = this.add.text(rightX - BTN_SIZE - BTN_MARGIN, bottomY, '技', btnStyle)
+    this.btnFire = this.add.text(col2, bottomY - BTN_SIZE - BTN_MARGIN, '火', btnStyle)
+      .setOrigin(0.5).setDepth(UI_DEPTH).setInteractive();
+
+    this.btnIce = this.add.text(col2, bottomY, '冰', btnStyle)
+      .setOrigin(0.5).setDepth(UI_DEPTH).setInteractive();
+
+    this.btnSlash = this.add.text(rightX, bottomY, '斬', btnStyle)
       .setOrigin(0.5).setDepth(UI_DEPTH).setInteractive();
 
     this.btnAttack.on('pointerdown', () => this.gameScene.playerAttackFacing());
-    this.btnSkill.on('pointerdown',  () => this.gameScene.playerSkill());
+    this.btnFire.on('pointerdown',   () => this.gameScene.playerSkillFire());
+    this.btnIce.on('pointerdown',    () => this.gameScene.playerSkillIce());
+    this.btnSlash.on('pointerdown',  () => this.gameScene.playerSkillSlash());
   }
 
   // ─── 觸控搖桿邏輯 ─────────────────────────────────────────

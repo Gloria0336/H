@@ -1,7 +1,13 @@
 import * as ROT from 'rot-js';
-import { MAP_COLS, MAP_ROWS } from '@/config';
 import { TileMap, FovState } from './TileMap';
 import { TileType, TILE_VISUALS, pickChar } from './tiles';
+
+function getFloorMapSize(floor: number): { cols: number; rows: number } {
+  if (floor <= 3) return { cols: 30, rows: 30 };
+  if (floor <= 6) return { cols: 50, rows: 50 };
+  if (floor <= 9) return { cols: 80, rows: 80 };
+  return { cols: 50, rows: 50 }; // floor 10
+}
 
 // ─── 房間資料 ─────────────────────────────────────────────────
 export interface Room {
@@ -58,10 +64,11 @@ export class DungeonGenerator {
     }
 
     // ── 一般地層生成 ────────────────────────────────────────────
-    const map = new TileMap(MAP_COLS, MAP_ROWS);
+    const { cols, rows } = getFloorMapSize(this.floorNumber);
+    const map = new TileMap(cols, rows);
 
     // Step 1：以 DividedMaze 生成迷宮底圖（全部標為 CORRIDOR）
-    const rotMap = new ROT.Map.DividedMaze(MAP_COLS, MAP_ROWS);
+    const rotMap = new ROT.Map.DividedMaze(cols, rows);
     rotMap.create((x, y, wall) => {
       if (!wall) {
         map.set(x, y, {
@@ -95,8 +102,8 @@ export class DungeonGenerator {
       for (let attempt = 0; attempt < MAX_ATTEMPTS && !placed; attempt++) {
         const w = MIN_W + Math.floor(ROT.RNG.getUniform() * (MAX_W - MIN_W + 1));
         const h = MIN_H + Math.floor(ROT.RNG.getUniform() * (MAX_H - MIN_H + 1));
-        const x = 1 + Math.floor(ROT.RNG.getUniform() * (MAP_COLS - w - 2));
-        const y = 1 + Math.floor(ROT.RNG.getUniform() * (MAP_ROWS - h - 2));
+        const x = 1 + Math.floor(ROT.RNG.getUniform() * (cols - w - 2));
+        const y = 1 + Math.floor(ROT.RNG.getUniform() * (rows - h - 2));
 
         // 與現有房間不可重疊（含 1 格邊距）
         const overlaps = rooms.some(r =>
@@ -187,11 +194,12 @@ export class DungeonGenerator {
 
   // ── 第 10 層王座廳（手動建）────────────────────────────────────
   private buildThroneFloor(): { map: TileMap; rooms: Room[]; playerStart: { x: number; y: number } } {
-    const map = new TileMap(MAP_COLS, MAP_ROWS);
+    const { cols, rows } = getFloorMapSize(this.floorNumber);
+    const map = new TileMap(cols, rows);
 
     // 初始化全部為 WALL
-    for (let y = 0; y < MAP_ROWS; y++) {
-      for (let x = 0; x < MAP_COLS; x++) {
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
         map.set(x, y, {
           type: TileType.WALL, char: '牆',
           passable: false, transparent: false, fov: FovState.DARK,
@@ -201,8 +209,8 @@ export class DungeonGenerator {
 
     // 20×15 的大廳置中
     const rw = 20, rh = 15;
-    const rx = Math.floor((MAP_COLS - rw) / 2);
-    const ry = Math.floor((MAP_ROWS - rh) / 2);
+    const rx = Math.floor((cols - rw) / 2);
+    const ry = Math.floor((rows - rh) / 2);
 
     for (let y = ry; y < ry + rh; y++) {
       for (let x = rx; x < rx + rw; x++) {
@@ -270,8 +278,8 @@ export class DungeonGenerator {
     }
 
     // 無法到達的通行格（孤立廊道）→ 改回牆
-    for (let y = 0; y < MAP_ROWS; y++) {
-      for (let x = 0; x < MAP_COLS; x++) {
+    for (let y = 0; y < map.rows; y++) {
+      for (let x = 0; x < map.cols; x++) {
         const cell = map.get(x, y);
         if (cell?.passable && !visited.has(`${x},${y}`)) {
           map.set(x, y, {
