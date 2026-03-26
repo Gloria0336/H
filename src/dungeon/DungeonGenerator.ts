@@ -67,18 +67,9 @@ export class DungeonGenerator {
     const { cols, rows } = getFloorMapSize(this.floorNumber);
     const map = new TileMap(cols, rows);
 
-    // Step 1：以 DividedMaze 生成迷宮底圖（全部標為 CORRIDOR）
-    const rotMap = new ROT.Map.DividedMaze(cols, rows);
-    rotMap.create((x, y, wall) => {
-      if (!wall) {
-        map.set(x, y, {
-          type:        TileType.CORRIDOR,
-          char:        '廊',
-          passable:    true,
-          transparent: true,
-          fov:         FovState.DARK,
-        });
-      } else {
+    // Step 1：初始化全部為牆
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
         map.set(x, y, {
           type:        TileType.WALL,
           char:        '牆',
@@ -87,12 +78,11 @@ export class DungeonGenerator {
           fov:         FovState.DARK,
         });
       }
-    });
+    }
 
-    // Step 2：在迷宮上隨機放置指定數量的房間（覆蓋迷宮格子）
-    const target   = FLOOR_ROOM_COUNTS[this.floorNumber] ?? 5;
-    const rooms:    Room[]       = [];
-    const roomCells = new Set<string>();
+    // Step 2：在地圖上隨機放置指定數量的房間
+    const target = FLOOR_ROOM_COUNTS[this.floorNumber] ?? 5;
+    const rooms: Room[] = [];
 
     const MIN_W = 5, MAX_W = 10, MIN_H = 4, MAX_H = 8;
     const MAX_ATTEMPTS = 300;
@@ -125,15 +115,18 @@ export class DungeonGenerator {
               transparent: true,
               fov:         FovState.DARK,
             });
-            roomCells.add(`${rx},${ry}`);
           }
         }
         placed = true;
       }
     }
 
-    // Step 3：BFS 從所有房間格出發，刪除沒有連接到房間的死胡同廊道
-    this.pruneOrphanCorridors(map, roomCells);
+    // Step 3：用 MST 連接所有房間（或使用者自訂邏輯）
+    if (this.logic.connectRooms) {
+      this.logic.connectRooms(rooms, map, () => ROT.RNG.getUniform());
+    } else {
+      this.connectRoomsWithMST(rooms, map);
+    }
 
     // ── 標記特殊房間 ─────────────────────────────────────────────
     if (rooms.length > 0) {
@@ -148,11 +141,6 @@ export class DungeonGenerator {
       rooms[midIdx].locked = true;
     }
     rooms.forEach(r => { if (!r.tag) r.tag = 'normal'; });
-
-    // ── 使用者自訂串接邏輯 ────────────────────────────────────────
-    if (this.logic.connectRooms) {
-      this.logic.connectRooms(rooms, map, () => ROT.RNG.getUniform());
-    }
 
     // ── 放置柱（大房間）─────────────────────────────────────────
     this.placePillars(rooms, map);
@@ -250,47 +238,83 @@ export class DungeonGenerator {
     };
   }
 
-  // ── 剪除孤立廊道（BFS 從保留房間擴散，不可達的通行格改回牆）──
-  private pruneOrphanCorridors(map: TileMap, roomCells: Set<string>) {
-    const visited = new Set<string>();
-    const queue:   [number, number][] = [];
+  // ── MST 連接所有房間，再加 1-2 條 loop edge ─────────────────
+  private connectRoomsWithMST(rooms: Room[], map: TileMap): void {
+    if (rooms.length < 2) return;
 
-    // 以所有保留房間格為起點
-    roomCells.forEach(key => {
-      visited.add(key);
-      const [x, y] = key.split(',').map(Number);
-      queue.push([x, y]);
-    });
+    // Prim's 演算法（Manhattan 距離）
+    const inMST = new Array(rooms.length).fill(false);
+    const mstEdges: [number, number][] = [];
+    inMST[0] = true;
 
-    const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
-    let i = 0;
-    while (i < queue.length) {
-      const [cx, cy] = queue[i++];
-      for (const [dx, dy] of dirs) {
-        const nx = cx + dx, ny = cy + dy;
-        const key = `${nx},${ny}`;
-        if (visited.has(key)) continue;
-        const cell = map.get(nx, ny);
-        if (!cell || !cell.passable) continue;
-        visited.add(key);
-        queue.push([nx, ny]);
+    for (let step = 0; step < rooms.length - 1; step++) {
+      let bestDist = Infinity, bestA = -1, bestB = -1;
+      for (let a = 0; a < rooms.length; a++) {
+        if (!inMST[a]) continue;
+        for (let b = 0; b < rooms.length; b++) {
+          if (inMST[b]) continue;
+          const dist = Math.abs(rooms[a].cx - rooms[b].cx)
+                     + Math.abs(rooms[a].cy - rooms[b].cy);
+          if (dist < bestDist) { bestDist = dist; bestA = a; bestB = b; }
+        }
+      }
+      inMST[bestB] = true;
+      mstEdges.push([bestA, bestB]);
+    }
+
+    for (const [a, b] of mstEdges) {
+      this.carveCorridorLShape(rooms[a], rooms[b], map);
+    }
+
+    // 收集非 MST 邊，隨機加 1-2 條 loop edge
+    const mstSet = new Set(mstEdges.map(([a, b]) => `${Math.min(a,b)},${Math.max(a,b)}`));
+    const extras: [number, number][] = [];
+    for (let a = 0; a < rooms.length; a++) {
+      for (let b = a + 1; b < rooms.length; b++) {
+        if (!mstSet.has(`${a},${b}`)) extras.push([a, b]);
       }
     }
 
-    // 無法到達的通行格（孤立廊道）→ 改回牆
-    for (let y = 0; y < map.rows; y++) {
-      for (let x = 0; x < map.cols; x++) {
-        const cell = map.get(x, y);
-        if (cell?.passable && !visited.has(`${x},${y}`)) {
-          map.set(x, y, {
-            type:        TileType.WALL,
-            char:        '牆',
-            passable:    false,
-            transparent: false,
-            fov:         FovState.DARK,
-          });
-        }
+    // Fisher-Yates shuffle
+    for (let i = extras.length - 1; i > 0; i--) {
+      const j = Math.floor(ROT.RNG.getUniform() * (i + 1));
+      [extras[i], extras[j]] = [extras[j], extras[i]];
+    }
+
+    const extraCount = extras.length === 0 ? 0 : (ROT.RNG.getUniform() < 0.5 ? 1 : 2);
+    for (let i = 0; i < Math.min(extraCount, extras.length); i++) {
+      this.carveCorridorLShape(rooms[extras[i][0]], rooms[extras[i][1]], map);
+    }
+  }
+
+  // ── L 形走廊（水平→垂直 或 垂直→水平，隨機）────────────────
+  private carveCorridorLShape(a: Room, b: Room, map: TileMap): void {
+    const horizFirst = ROT.RNG.getUniform() < 0.5;
+    const bendX = horizFirst ? b.cx : a.cx;
+    const bendY = horizFirst ? a.cy : b.cy;
+    this.carveLine(a.cx, a.cy, bendX, bendY, map);
+    this.carveLine(bendX, bendY, b.cx, b.cy, map);
+  }
+
+  // ── 直線挖廊（只覆蓋 WALL，不覆蓋 FLOOR/DOOR/EXIT）────────
+  private carveLine(x1: number, y1: number, x2: number, y2: number, map: TileMap): void {
+    const dx = x1 === x2 ? 0 : (x2 > x1 ? 1 : -1);
+    const dy = y1 === y2 ? 0 : (y2 > y1 ? 1 : -1);
+    let x = x1, y = y1;
+    while (true) {
+      const cell = map.get(x, y);
+      if (cell?.type === TileType.WALL) {
+        map.set(x, y, {
+          type:        TileType.CORRIDOR,
+          char:        '廊',
+          passable:    true,
+          transparent: true,
+          fov:         FovState.DARK,
+        });
       }
+      if (x === x2 && y === y2) break;
+      x += dx;
+      y += dy;
     }
   }
 
@@ -321,30 +345,65 @@ export class DungeonGenerator {
     });
   }
 
-  // ── 放置門（locked 房間邊界接廊處）────────────────────────────
+  // ── 放置門（locked 房間：唯一入口一格寬，只放一個門）──────
   private placeDoors(rooms: Room[], map: TileMap) {
     rooms.filter(r => r.locked).forEach(r => {
+      // 收集所有邊界 FLOOR 格且鄰接 CORRIDOR 的候選格
+      const candidates: [number, number][] = [];
       for (let x = r.x; x < r.x + r.w; x++) {
         for (let y = r.y; y < r.y + r.h; y++) {
-          const onEdge = (x === r.x || x === r.x + r.w - 1 || y === r.y || y === r.y + r.h - 1);
+          const onEdge = x === r.x || x === r.x + r.w - 1 || y === r.y || y === r.y + r.h - 1;
           if (!onEdge) continue;
-          const cell = map.get(x, y);
-          if (cell?.type !== TileType.FLOOR) continue;
-
-          // 鄰接到 CORRIDOR 才放門
-          const neighbours = [[x-1,y],[x+1,y],[x,y-1],[x,y+1]];
-          const touchesCorridor = neighbours.some(([nx,ny]) => map.get(nx, ny)?.type === TileType.CORRIDOR);
-          if (touchesCorridor) {
-            map.set(x, y, {
-              type:        TileType.DOOR,
-              char:        '門',
-              passable:    false,
-              transparent: false,
-              fov:         FovState.DARK,
-            });
-          }
+          if (map.get(x, y)?.type !== TileType.FLOOR) continue;
+          const touchesCorridor = [[x-1,y],[x+1,y],[x,y-1],[x,y+1]]
+            .some(([nx,ny]) => map.get(nx, ny)?.type === TileType.CORRIDOR);
+          if (touchesCorridor) candidates.push([x, y]);
         }
       }
+      if (candidates.length === 0) return;
+
+      // BFS：將相鄰候選格分組（走廊從同一段外牆進入算同一入口）
+      const candidateSet = new Set(candidates.map(([x,y]) => `${x},${y}`));
+      const visited = new Set<string>();
+      const groups: [number, number][][] = [];
+      for (const [sx, sy] of candidates) {
+        const key = `${sx},${sy}`;
+        if (visited.has(key)) continue;
+        const group: [number, number][] = [];
+        const queue: [number, number][] = [[sx, sy]];
+        visited.add(key);
+        while (queue.length > 0) {
+          const [cx, cy] = queue.shift()!;
+          group.push([cx, cy]);
+          for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]] as [number,number][]) {
+            const nk = `${cx+dx},${cy+dy}`;
+            if (!visited.has(nk) && candidateSet.has(nk)) {
+              visited.add(nk);
+              queue.push([cx+dx, cy+dy]);
+            }
+          }
+        }
+        groups.push(group);
+      }
+
+      // 只保留第一個入口群組；其餘候選格全部封牆
+      const chosen = groups[0];
+      const chosenSet = new Set(chosen.map(([x,y]) => `${x},${y}`));
+      for (const [x, y] of candidates) {
+        if (!chosenSet.has(`${x},${y}`)) {
+          map.set(x, y, { type: TileType.WALL, char: '牆', passable: false, transparent: false, fov: FovState.DARK });
+        }
+      }
+
+      // 選中群組：中間格放門，其餘格封牆 → 入口恰好一格寬
+      const mid = Math.floor(chosen.length / 2);
+      chosen.forEach(([x, y], i) => {
+        if (i === mid) {
+          map.set(x, y, { type: TileType.DOOR, char: '門', passable: false, transparent: false, fov: FovState.DARK });
+        } else {
+          map.set(x, y, { type: TileType.WALL, char: '牆', passable: false, transparent: false, fov: FovState.DARK });
+        }
+      });
     });
   }
 }
